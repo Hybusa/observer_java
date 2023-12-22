@@ -6,6 +6,7 @@ import com.intellij.openapi.project.Project;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
+import pro.sky.observer_java.constants.JsonFields;
 import pro.sky.observer_java.constants.ProjectFileStatus;
 import pro.sky.observer_java.mapper.ProjectFileMapper;
 import pro.sky.observer_java.model.ProjectFile;
@@ -23,6 +24,7 @@ public class FileStructureStringer {
     private final List<ProjectFile> projectFiles = new ArrayList<>();
     private final ResourceManager resourceManager;
     private final Logger logger = Logger.getLogger(FileStructureStringer.class.getName());
+
     public FileStructureStringer(ResourceManager resourceManager) {
         this.resourceManager = resourceManager;
     }
@@ -31,9 +33,9 @@ public class FileStructureStringer {
         File directory = new File(directoryName);
 
         File[] fList = directory.listFiles();
-        if (fList != null)
+        if (fList != null) {
             for (File file : fList) {
-                if (pathContainsIgnored(file.getPath())) {
+                if (resourceManager.getObserverIgnore().checkIfIsInIgnored(file)) {
                     continue;
                 }
                 if (file.isFile()) {
@@ -42,23 +44,19 @@ public class FileStructureStringer {
                     listFiles(file.getAbsolutePath(), files);
                 }
             }
+        }
     }
 
-    public List<File> getProjectFilesList(Project project){
-        String basePath = project.getBasePath();
-        listFiles(project.getBasePath(), files);
-        return files;
-    }
     public String getProjectFilesJson(Project project) {
 
         String basePath = project.getBasePath();
         listFiles(project.getBasePath(), files);
 
 
-        ProjectFileMapper projectFileMapper = new ProjectFileMapper();
+        ProjectFileMapper projectFileMapper = new ProjectFileMapper(resourceManager);
         for (File file : files) {
             ProjectFile projectFile;
-            if(pathContainsIgnored(file.getPath())){
+            if(resourceManager.getObserverIgnore().checkIfIsInIgnored(file)){
                 continue;
             }
             try {
@@ -73,12 +71,6 @@ public class FileStructureStringer {
         return getJsonStringFromProjectFileList(projectFiles);
     }
 
-    private static boolean pathContainsIgnored(String path) {
-        if(path.contains(".idea")||path.contains("venv")){
-            return true;
-        }
-        return false;
-    }
 
     public String getJsonStringFromProjectFileList(List<ProjectFile> projectFiles) {
         String json;
@@ -91,17 +83,16 @@ public class FileStructureStringer {
         return json;
     }
 
-    public JSONObject getJsonObjectFromString(String json) {
+    public JSONObject getCodeSendJsonObjectFromString(String json) {
         JSONObject sendMessage = new JSONObject();
         JSONArray data;
         try {
             data = new JSONArray(json);
-            sendMessage.put("room_id", resourceManager.getRoomId());
-            sendMessage.put("files", data);
+            sendMessage.put(JsonFields.ROOM_ID, resourceManager.getRoomId());
+            sendMessage.put(JsonFields.FILES, data);
         } catch (JSONException e) {
             throw new RuntimeException(e);
         }
         return sendMessage;
     }
-
 }

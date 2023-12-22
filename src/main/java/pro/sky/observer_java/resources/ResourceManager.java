@@ -1,18 +1,16 @@
 package pro.sky.observer_java.resources;
 
-
 import com.intellij.openapi.wm.ToolWindow;
 import io.socket.client.Socket;
 import pro.sky.observer_java.ConnectedPanel;
 import pro.sky.observer_java.InactivePanel;
-import pro.sky.observer_java.SkyPanelToolWindowFactory;
-import pro.sky.observer_java.constants.StudentSignal;
+import pro.sky.observer_java.constants.*;
 import pro.sky.observer_java.model.Message;
 import pro.sky.observer_java.model.ProjectFile;
+import pro.sky.observer_java.model.Step;
 
-import javax.swing.*;
-import java.util.ArrayList;
-import java.util.List;
+import java.time.LocalDateTime;
+import java.util.*;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 
@@ -27,11 +25,7 @@ public class ResourceManager {
 
     private volatile ToolWindow toolWindow;
 
-    private volatile SkyPanelToolWindowFactory skyPanelToolWindowFactory;
-
-    private volatile SkyPanelToolWindowFactory.SkyPanelToolWindowContent skyPanelToolWindowContent;
-
-    private volatile JPanel contentPanel;
+    private int chatCounter = 0;
 
     private Socket mSocket;
 
@@ -41,14 +35,16 @@ public class ResourceManager {
 
     private ScheduledExecutorService ses = Executors.newSingleThreadScheduledExecutor();
 
-    private StudentSignal studentSignal = StudentSignal.NONE;
+    private Map<String, Step> stepMap = new HashMap<>();
 
-    public StudentSignal getStudentStatus() {
-        return studentSignal;
+    private ObserverIgnore observerIgnore = new ObserverIgnore();
+
+    public ObserverIgnore getObserverIgnore() {
+        return observerIgnore;
     }
 
-    public void setStudentStatus(StudentSignal studentSignal) {
-        this.studentSignal = studentSignal;
+    public void refreshObserverIgnore() {
+        this.observerIgnore = new ObserverIgnore();
     }
 
     public ScheduledExecutorService getSes() {
@@ -63,15 +59,15 @@ public class ResourceManager {
         this.editorUpdateEvents = editorUpdateEvents;
     }
 
-    public Integer getUserId() {
-        return userId;
+    public void clearEditorUpdateEvents() {
+        this.editorUpdateEvents.clear();
     }
 
     public void setUserId(Integer userId) {
         this.userId = userId;
     }
 
-    private List<Message> messageList = new ArrayList<>();
+    private List<Message> allMessageList = new ArrayList<>();
 
     private volatile boolean watching = false;
 
@@ -115,29 +111,6 @@ public class ResourceManager {
         this.toolWindow = toolWindow;
     }
 
-    public SkyPanelToolWindowFactory getSkyPanelToolWindowFactory() {
-        return skyPanelToolWindowFactory;
-    }
-
-    public void setSkyPanelToolWindowFactory(SkyPanelToolWindowFactory skyPanelToolWindowFactory) {
-        this.skyPanelToolWindowFactory = skyPanelToolWindowFactory;
-    }
-
-    public SkyPanelToolWindowFactory.SkyPanelToolWindowContent getSkyPanelToolWindowContent() {
-        return skyPanelToolWindowContent;
-    }
-
-    public void setSkyPanelToolWindowContent(SkyPanelToolWindowFactory.SkyPanelToolWindowContent skyPanelToolWindowContent) {
-        this.skyPanelToolWindowContent = skyPanelToolWindowContent;
-    }
-
-    public JPanel getContentPanel() {
-        return contentPanel;
-    }
-
-    public void setContentPanel(JPanel contentPanel) {
-        this.contentPanel = contentPanel;
-    }
 
     public Socket getmSocket() {
         return mSocket;
@@ -147,12 +120,12 @@ public class ResourceManager {
         this.mSocket = mSocket;
     }
 
-    public List<Message> getMessageList() {
-        return messageList;
+    public List<Message> getAllMessageList() {
+        return allMessageList;
     }
 
-    public void setMessageList(List<Message> messageList) {
-        this.messageList = messageList;
+    public void resetMessageList() {
+        this.allMessageList.clear();
     }
 
     public boolean isWatching() {
@@ -165,5 +138,67 @@ public class ResourceManager {
 
     public void setSes(ScheduledExecutorService scheduledExecutorService) {
         this.ses = scheduledExecutorService;
+    }
+
+    public void setSteps(Map<String, Step> stepMap) {
+        this.stepMap = stepMap;
+    }
+
+    public Collection<Step> getStepsList() {
+        return stepMap.values();
+    }
+
+    public Map<String, Step> getStepsMap() {
+        return stepMap;
+    }
+
+    public int getChatCounter() {
+        return chatCounter;
+    }
+
+    public void setChatCounter(int chatCounter) {
+        this.chatCounter = chatCounter;
+    }
+
+    public void clearSteps() {
+        this.stepMap.clear();
+    }
+
+    public void updateStepStatus(Map<String, StepStatus> steps) {
+        for (Map.Entry<String, StepStatus> entry : steps.entrySet()) {
+            stepMap.get(String.format(StringFormats.TASK_FORMAT, entry.getKey())).setStatus(entry.getValue());
+            switch (entry.getValue()) {
+                case ACCEPTED -> {
+                    connectedPanel.appendChat(
+                            new Message(
+                                    SenderNames.TASK_STATUS_CHANGES,
+                                    LocalDateTime.now(),
+                                    String.format(
+                                            StringFormats.TASK_ACCEPTED,
+                                            String.format(
+                                                    StringFormats.TASK_FORMAT,entry.getKey()
+                                            )
+                                    )
+                            )
+                    );
+                    connectedPanel.addCounterNonActive();
+                    connectedPanel.setVisualToNone(entry.getKey());
+                }
+                case NONE -> connectedPanel.setVisualToNone(entry.getKey());
+
+            }
+            if (entry.getValue().equals(StepStatus.ACCEPTED)) {
+                // TODO UPDATE STEP STATUS VISUALS
+
+            }
+        }
+    }
+
+    public void addMessageToChatAndToList(Message message) {
+        if (connectedPanel.getChatArea().getText().equals(FieldTexts.NO_MESSAGES)) {
+            connectedPanel.getChatArea().setText("");
+        }
+        connectedPanel.appendChat(message);
+        allMessageList.add(message);
     }
 }
